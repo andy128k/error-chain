@@ -326,8 +326,7 @@ mod foreign_link_test {
         types{
             Error, ErrorKind, ResultExt, Result;
         }
-        links {}
-        foreign_links {
+        links {
             Foreign(ForeignError);
             Io(::std::io::Error);
         }

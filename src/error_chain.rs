@@ -1,3 +1,25 @@
+#[doc(hidden)]
+#[macro_export]
+macro_rules! the_only_path {
+    ($path:path) => {$path};
+    ($path:path) => {$path};
+}
+
+
+#[doc(hidden)]
+#[macro_export]
+macro_rules! if_not_empty {
+    ([ $($whatever:path),+ ] THEN [ $then:expr ] ELSE [ $els:expr ]) => { $then };
+    ([] THEN [ $then:expr ] ELSE [ $els:expr ]) => { $els };
+}
+
+#[doc(hidden)]
+#[macro_export]
+macro_rules! if_not_empty_ty {
+    ([ $($whatever:path),+ ] THEN [ $then:ty ] ELSE [ $els:ty ]) => { $then };
+    ([] THEN [ $then:ty ] ELSE [ $els:ty ]) => { $els };
+}
+
 /// Prefer to use `error_chain` instead of this macro.
 #[doc(hidden)]
 #[macro_export]
@@ -41,7 +63,7 @@ macro_rules! impl_error_chain_processed {
         }
 
         links {
-            $( $link_variant:ident ( $link_error_path:path, $link_kind_path:path )
+            $( $link_variant:ident ( $link_error_path:path $(, $link_kind_path:path)* )
                $( #[$meta_links:meta] )*; ) *
         }
 
@@ -208,9 +230,11 @@ macro_rules! impl_error_chain_processed {
             $(#[$meta_links])*
             impl From<$link_error_path> for $error_name {
                 fn from(e: $link_error_path) -> Self {
+                    let kind_arg = if_not_empty!([$($link_kind_path),*] THEN [ e.0 ] ELSE [ e ]);
+                    let state =    if_not_empty!([$($link_kind_path),*] THEN [ e.1 ] ELSE [ $crate::State::default() ]);
                     $error_name(
-                        $error_kind_name::$link_variant(e.0),
-                        e.1,
+                        $error_kind_name::$link_variant(kind_arg),
+                        state
                     )
                 }
             }
@@ -262,8 +286,8 @@ macro_rules! impl_error_chain_processed {
 
                 $(
                     $(#[$meta_links])*
-                    $link_variant(e: $link_kind_path) {
-                        description(e.description())
+                    $link_variant( e: if_not_empty_ty!([$($link_kind_path)*] THEN [ the_only_path!($($link_kind_path),*) ] ELSE [ $link_error_path ]) ) {
+                        description( if_not_empty!([$($link_kind_path)*] THEN [ e.description() ] ELSE [ ::std::error::Error::description(e) ]) )
                         display("{}", e)
                     }
                 ) *
@@ -282,9 +306,10 @@ macro_rules! impl_error_chain_processed {
 
         $(
             $(#[$meta_links])*
-            impl From<$link_kind_path> for $error_kind_name {
-                fn from(e: $link_kind_path) -> Self {
-                    $error_kind_name::$link_variant(e)
+            impl From<if_not_empty_ty!([$($link_kind_path)*] THEN [ the_only_path!($($link_kind_path),*) ] ELSE [ $link_error_path ])> for $error_kind_name {
+                fn from(e: if_not_empty_ty!([$($link_kind_path)*] THEN [ the_only_path!($($link_kind_path),*) ] ELSE [ $link_error_path ])) -> Self {
+                    let kind_arg = if_not_empty!([$($link_kind_path),*] THEN [ e ] ELSE [ e.0 ]);
+                    $error_kind_name::$link_variant(kind_arg)
                 }
             }
         ) *
